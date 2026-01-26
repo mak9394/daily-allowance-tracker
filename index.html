@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Daily Allowance Tracker</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Optional styling -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Daily Allowance Tracker</h1>
+
+    <p>
+      Current Balance: $
+      <span id="balance">0.00</span>
+    </p>
+
+    <p>
+      Daily Allowance: $
+      <span id="dailyAllowance">100</span>
+    </p>
+
+    <div>
+      <label>
+        Spent Today: $
+        <input type="number" id="spent" value="0" />
+      </label>
+      <button onclick="spend()">Add Spending</button>
+    </div>
+
+    <div style="margin-top: 12px;">
+      <button onclick="resetDay()">Force New Day</button>
+    </div>
+  </div>
+
+  <!-- 🔥 Firebase SDKs (NO npm, NO CLI) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <!-- 🔥 Firebase configuration (YOUR PROJECT) -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBmaDJXyRblo9o0I8h3d_lP1h6wxA9s8o",
+      authDomain: "dailyallowancetracker.firebaseapp.com",
+      databaseURL: "https://dailyallowancetracker-default-rtdb.firebaseio.com",
+      projectId: "dailyallowancetracker",
+      storageBucket: "dailyallowancetracker.appspot.com",
+      messagingSenderId: "745691126368",
+      appId: "1:745691126368:web:b1af01fc2d574b11054105"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Make database available to app.js
+    const database = firebase.database();
+  </script>
+
+  <!-- App logic -->
+  <script src="app.js"></script>
+</body>
+</html>
