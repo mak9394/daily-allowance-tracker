@@ -3,44 +3,64 @@
 <head>
   <meta charset="UTF-8" />
   <title>Daily Allowance Tracker</title>
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Optional styling -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
     <h1>Daily Allowance Tracker</h1>
+    <div id="currentDate" class="date"></div>
 
     <p>
       Current Balance: $
       <span id="balance">0.00</span>
     </p>
 
-    <p>
+    <label>
+      Override Current Balance: $
+      <input type="number" id="setBalance" />
+      <button onclick="setCurrentBalance()">Save</button>
+    </label>
+
+    <hr>
+
+    <label>
       Daily Allowance: $
-      <span id="dailyAllowance">100</span>
-    </p>
+      <input type="number" id="dailyAllowance" />
+      <button onclick="updateAllowance()">Save</button>
+    </label>
 
-    <div>
-      <label>
-        Spent Today: $
-        <input type="number" id="spent" value="0" />
-      </label>
-      <button onclick="spend()">Add Spending</button>
-    </div>
+    <hr>
 
-    <div style="margin-top: 12px;">
-      <button onclick="resetDay()">Force New Day</button>
-    </div>
+    <label>
+      Spent Today: $
+      <input type="number" id="spent" />
+    </label>
+    <button onclick="spend()">Add Spending</button>
+
+    <hr>
+
+    <h3>Today's Activity</h3>
+    <div id="dailyChart"></div>
+
+    <hr>
+
+    <details>
+      <summary><strong>Weekly Summary</strong></summary>
+      <div id="weeklyChart"></div>
+    </details>
+
+    <hr>
+
+    <details>
+      <summary><strong>Monthly Summary (Previous Month)</strong></summary>
+      <div id="monthlyChart"></div>
+    </details>
   </div>
 
-  <!-- 🔥 Firebase SDKs (NO npm, NO CLI) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-  <!-- 🔥 Firebase configuration (YOUR PROJECT) -->
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBBmaDJXyRblo9o0I8h3d_lP1h6wxA9s8o",
@@ -52,14 +72,9 @@
       appId: "1:745691126368:web:b1af01fc2d574b11054105"
     };
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
-
-    // Make database available to app.js
-    const database = firebase.database();
   </script>
 
-  <!-- App logic -->
   <script src="app.js"></script>
 </body>
 </html>
