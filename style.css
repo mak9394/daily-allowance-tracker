@@ -1,17 +1,50 @@
 body {
   font-family: Arial, sans-serif;
-  text-align: center;
-  padding: 50px;
   background-color: #f4f4f4;
+  padding: 40px;
+  text-align: center;
 }
 
 .container {
   background: white;
-  padding: 20px;
-  border-radius: 10px;
+  padding: 25px;
+  border-radius: 12px;
+  min-width: 320px;
   display: inline-block;
 }
 
+.date {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
 input {
-  width: 80px;
+  width: 100px;
+  margin: 5px;
+}
+
+button {
+  padding: 5px 10px;
+  margin: 5px;
+  cursor: pointer;
+}
+
+hr {
+  margin: 20px 0;
+}
+
+.spend-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0;
+}
+
+.day-summary {
+  margin: 3px 0;
+}
+
+details summary {
+  cursor: pointer;
+  margin-bottom: 8px;
 }
