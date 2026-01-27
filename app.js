@@ -44,22 +44,30 @@ balanceRef.once("value").then((snapshot) => {
   const today = startOfDay(new Date());
   let cursor = startOfDay(new Date(lastProcessedDate));
 
-  while (cursor < today) {
-    cursor.setDate(cursor.getDate() + 1);
-    const key = dateKey(cursor);
+ // Process ONLY fully completed days
+while (true) {
+  const nextDay = new Date(cursor);
+  nextDay.setDate(nextDay.getDate() + 1);
 
-    balanceRef.child(`ledger/${key}`).push({
-      type: "allowance",
-      amount: dailyAllowance,
-      timestamp: cursor.getTime()
-    });
+  if (nextDay >= today) break;
 
-    currentBalance += dailyAllowance;
+  cursor = nextDay;
+  const key = dateKey(cursor);
 
-    balanceRef.child("dailyClosingBalance").update({
-      [key]: currentBalance
-    });
-  }
+  // Add allowance entry
+  balanceRef.child(`ledger/${key}`).push({
+    type: "allowance",
+    amount: dailyAllowance,
+    timestamp: cursor.getTime()
+  });
+
+  currentBalance += dailyAllowance;
+
+  // Save closing balance for that day
+  balanceRef.child("dailyClosingBalance").update({
+    [key]: currentBalance
+  });
+}
 
   balanceRef.update({
     currentBalance,
