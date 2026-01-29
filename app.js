@@ -163,26 +163,30 @@ function renderDailyChart(ledger) {
 
     if (!ledger[key]) continue;
 
-    // Create collapsible section
-    const details = document.createElement("details");
+    let dailySpendTotal = 0;
 
-    // Expand today by default
+    Object.values(ledger[key]).forEach(entry => {
+      if (entry.type === "spend") {
+        dailySpendTotal += Math.abs(entry.amount);
+      }
+    });
+
+    // Collapsible container
+    const details = document.createElement("details");
     if (i === 0) details.open = true;
 
     const summary = document.createElement("summary");
     summary.innerText =
-      i === 0
-        ? "Today"
-        : date.toLocaleDateString(undefined, {
-            weekday: "long",
-            month: "numeric",
-            day: "numeric",
-            year: "numeric"
-          });
+      (i === 0 ? "Today" : date.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "numeric",
+        day: "numeric",
+        year: "numeric"
+      })) +
+      ` — Spent: $${dailySpendTotal.toFixed(2)}`;
 
     details.appendChild(summary);
 
-    // Entries for that date
     Object.entries(ledger[key]).forEach(([id, entry]) => {
       const row = document.createElement("div");
       row.className = "spend-row";
@@ -192,7 +196,6 @@ function renderDailyChart(ledger) {
 
       row.appendChild(label);
 
-      // Undo only for spends
       if (entry.type === "spend") {
         const btn = document.createElement("button");
         btn.innerText = "Undo";
@@ -206,6 +209,7 @@ function renderDailyChart(ledger) {
     container.appendChild(details);
   }
 }
+
 
 
 function renderWeeklyChart(dailyBalances) {
