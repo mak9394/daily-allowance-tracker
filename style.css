@@ -1,3 +1,4 @@
+/* ------------------ GLOBAL ------------------ */
 body {
   font-family: Arial, sans-serif;
   background-color: #f4f4f4;
@@ -7,10 +8,11 @@ body {
 
 .container {
   background: white;
-  padding: 25px;
+  padding: 25px 30px;
   border-radius: 12px;
   min-width: 320px;
   display: inline-block;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 .date {
@@ -20,32 +22,82 @@ body {
 }
 
 input {
-  width: 100px;
+  width: 120px;
   margin: 5px;
+  padding: 5px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
 }
 
 button {
-  padding: 5px 10px;
+  padding: 6px 12px;
   margin: 5px;
   cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  background-color: #4CAF50;
+  color: white;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background-color: #45a049;
 }
 
 hr {
   margin: 20px 0;
+  border: 0;
+  border-top: 1px solid #ddd;
 }
 
+/* ------------------ AUTH CONTAINER ------------------ */
+#authContainer label {
+  display: block;
+  margin: 10px 0;
+  font-weight: bold;
+}
+
+#authContainer input {
+  width: 200px;
+}
+
+#authContainer button {
+  width: 100px;
+}
+
+/* ------------------ LEDGER ROWS ------------------ */
 .spend-row {
-  display: flex;              /* put text and button on the same row */
-  justify-content: space-between; /* push button to far right */
-  align-items: center;        /* vertically center text and button */
+  display: flex;                
+  justify-content: space-between; /* Undo button on far right */
+  align-items: center;          /* Vertically center text + button */
   margin: 4px 0;
 }
 
+/* Keep type + amount + note together */
 .spend-row .text {
-  display: inline-flex;       /* keep type, amount, note together */
-  gap: 6px;                   /* small spacing between type/amount/note */
+  display: inline-flex;
+  gap: 6px; /* small spacing between type/amount/note */
 }
 
+/* ------------------ AMOUNT COLORING ------------------ */
+/* Make all amounts bold */
+.spend-row span.amount {
+  font-weight: bold;
+}
+
+/* Red for spend amounts */
+.spend-row span.amount.spend {
+  color: red;
+}
+
+/* Green for bonus or allowance amounts */
+.spend-row span.amount.bonus,
+.spend-row span.amount.allowance {
+  color: green;
+}
+
+/* ------------------ SUMMARY / DETAILS ------------------ */
 .day-summary {
   margin: 3px 0;
 }
@@ -64,22 +116,4 @@ summary {
   font-weight: bold;
   cursor: pointer;
   margin-bottom: 4px;
-}
-
-.spend-row.bonus {
-  color: green;
-  font-weight: bold;
-}
-
-/* Spend entries show in red */
-.spend-row.spend {
-  color: red;
-  font-weight: bold;
-}
-
-/* Allowance and bonus entries show in green */
-.spend-row.allowance,
-.spend-row.bonus {
-  color: green;
-  font-weight: bold;
 }
