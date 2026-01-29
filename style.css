@@ -35,9 +35,15 @@ hr {
 }
 
 .spend-row {
-  display: flex;
-  justify-content: space-between;
+  display: flex;              /* put text and button on the same row */
+  justify-content: space-between; /* push button to far right */
+  align-items: center;        /* vertically center text and button */
   margin: 4px 0;
+}
+
+.spend-row .text {
+  display: inline-flex;       /* keep type, amount, note together */
+  gap: 6px;                   /* small spacing between type/amount/note */
 }
 
 .day-summary {
@@ -58,4 +64,22 @@ summary {
   font-weight: bold;
   cursor: pointer;
   margin-bottom: 4px;
+}
+
+.spend-row.bonus {
+  color: green;
+  font-weight: bold;
+}
+
+/* Spend entries show in red */
+.spend-row.spend {
+  color: red;
+  font-weight: bold;
+}
+
+/* Allowance and bonus entries show in green */
+.spend-row.allowance,
+.spend-row.bonus {
+  color: green;
+  font-weight: bold;
 }
