@@ -1,113 +1,243 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Daily Allowance Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<title>Daily Allowance Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+  .container { background:#fff; padding:30px; border-radius:12px; width:100%; max-width:400px; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+  h1,h2{ text-align:center; margin-bottom:20px; }
+  label{ display:block; margin:10px 0 5px; font-weight:bold; }
+  input[type=email], input[type=password], input[type=number], input[type=text], input[type=date]{ width:100%; padding:8px; margin-bottom:10px; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; }
+  button{ width:100%; padding:10px; border:none; border-radius:6px; background:#4CAF50; color:#fff; font-weight:bold; cursor:pointer; margin-top:5px; }
+  button:hover{ background:#45a049; }
+  #togglePassword{ margin-top:-10px; margin-bottom:10px; display:inline-block; cursor:pointer; font-size:0.9em; color:#333; }
+  #errorMsg{ color:red; margin:10px 0; text-align:center; }
+  #appContainer{ display:none; }
+  hr{ margin:20px 0; }
+  .spend-row{ display:flex; justify-content:space-between; align-items:center; margin:4px 0; }
+  .spend-row .text{ display:inline-flex; gap:6px; }
+  .spend-row span.amount{ font-weight:bold; }
+  .spend-row span.amount.spend{ color:red; }
+  .spend-row span.amount.bonus, .spend-row span.amount.allowance{ color:green; }
+  details summary{ cursor:pointer; margin-bottom:8px; font-weight:bold; }
+  details{ margin-bottom:8px; text-align:left; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Daily Allowance Tracker</h1>
-    <div id="currentDate" class="date"></div>
 
-    <p>
-      Current Balance: $
-      <span id="balance">0.00</span>
-    </p>
+<div class="container" id="authContainer">
+  <h2>Login / Signup</h2>
+  <div id="errorMsg"></div>
+  <label>Email:</label>
+  <input type="email" id="email" placeholder="you@example.com" />
+  <label>Password:</label>
+  <input type="password" id="password" placeholder="Your password" />
+  <span id="togglePassword">Show Password</span>
+  <button onclick="signup()">Sign Up</button>
+  <button onclick="login()">Log In</button>
+</div>
 
-    <label>
-      Override Current Balance: $
-      <input type="number" id="setBalance" />
-      <button onclick="setCurrentBalance()">Save</button>
-    </label>
+<div class="container" id="appContainer">
+  <button onclick="logout()" style="background:#f44336;">Log Out</button>
+  <h1>Daily Allowance Tracker</h1>
+  <div id="currentDate" class="date"></div>
 
-    <hr>
+  <p>Current Balance: $<span id="balance">0.00</span></p>
+  <label>Override Current Balance: $<input type="number" id="setBalance" /><button onclick="setCurrentBalance()">Save</button></label>
+  <hr>
+  <label>Daily Allowance: $<input type="number" id="dailyAllowance" /><button onclick="updateAllowance()">Save</button></label>
+  <hr>
 
-    <label>
-      Daily Allowance: $
-      <input type="number" id="dailyAllowance" />
-      <button onclick="updateAllowance()">Save</button>
-    </label>
+  <h3>Add Spend</h3>
+  <label>Amount: $<input type="number" id="spent" /></label>
+  <label>Date: <input type="date" id="spendDate" /></label>
+  <label>Note: <input type="text" id="spendNote" placeholder="Optional note" /></label>
+  <button onclick="spend()">Add Spending</button>
+  <hr>
 
-    <hr>
+  <h3>Add Bonus</h3>
+  <label>Amount: $<input type="number" id="bonusAmount" /></label>
+  <label>Date: <input type="date" id="bonusDate" /></label>
+  <label>Note: <input type="text" id="bonusNote" placeholder="Optional note" /></label>
+  <button onclick="addBonus()">Add Bonus</button>
+  <hr>
 
-<hr>
-<h3>Add Spend</h3>
+  <h3>Recent Activity (Last 7 Days)</h3>
+  <div id="dailyChart"></div>
+  <hr>
 
-<label>
-  Amount: $
-  <input type="number" id="spent" />
-</label>
+  <details><summary><strong>Weekly Summary</strong></summary><div id="weeklyChart"></div></details>
+  <hr>
+  <details><summary><strong>Monthly Summary</strong></summary><div id="monthlyChart"></div></details>
+</div>
 
-<label>
-  Date:
-  <input type="date" id="spendDate" />
-</label>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-<label>
-  Note:
-  <input type="text" id="spendNote" placeholder="Optional note" />
-</label>
+<script>
+const DEFAULT_ALLOWANCE=100;
+let userId=null, balanceRef=null;
 
-<button onclick="spend()">Add Spending</button>
+/* ------------------ FIREBASE CONFIG ------------------ */
+const firebaseConfig={
+  apiKey:"YOUR_API_KEY",
+  authDomain:"YOUR_PROJECT.firebaseapp.com",
+  databaseURL:"YOUR_DB_URL",
+  projectId:"YOUR_PROJECT",
+  storageBucket:"YOUR_PROJECT.appspot.com",
+  messagingSenderId:"YOUR_ID",
+  appId:"YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
 
-<hr>
-<h3>Add Bonus</h3>
-<label>
-  Amount: $
-  <input type="number" id="bonusAmount" />
-</label>
+/* ------------------ AUTH ------------------ */
+const errorMsg=document.getElementById("errorMsg");
+async function signup(){ errorMsg.innerText=""; try{ await firebase.auth().createUserWithEmailAndPassword(document.getElementById("email").value,document.getElementById("password").value);} catch(e){ errorMsg.innerText=e.message;} }
+async function login(){ errorMsg.innerText=""; try{ await firebase.auth().signInWithEmailAndPassword(document.getElementById("email").value,document.getElementById("password").value);} catch(e){ errorMsg.innerText=e.message;} }
+function logout(){ firebase.auth().signOut(); }
 
-<label>
-  Date:
-  <input type="date" id="bonusDate" />
-</label>
+/* Toggle password */
+document.getElementById("togglePassword").addEventListener("click",()=>{
+  const pw=document.getElementById("password");
+  if(pw.type==="password"){ pw.type="text"; } else { pw.type="password"; }
+});
 
-<label>
-  Note:
-  <input type="text" id="bonusNote" placeholder="Optional note" />
-</label>
+/* ------------------ AUTH STATE ------------------ */
+firebase.auth().onAuthStateChanged(async(user)=>{
+  if(user){ userId=user.uid; balanceRef=firebase.database().ref(`users/${userId}/balanceData`);
+    document.getElementById("authContainer").style.display="none"; document.getElementById("appContainer").style.display="block"; await initApp();
+  } else{ userId=null; balanceRef=null; document.getElementById("authContainer").style.display="block"; document.getElementById("appContainer").style.display="none"; }
+});
 
-<button onclick="addBonus()">Add Bonus</button>
+/* ------------------ DATE HELPERS ------------------ */
+function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+function dateKey(date) { return startOfDay(date).toISOString().split("T")[0]; }
 
-    <hr>
+/* ------------------ SHOW TODAY ------------------ */
+document.getElementById("currentDate").innerText =
+  new Date().toLocaleDateString(undefined,{ weekday:"long", year:"numeric", month:"long", day:"numeric" });
 
-<h3>Recent Activity (Last 3 Days)</h3>
-<div id="dailyChart"></div>
+/* ------------------ INIT APP ------------------ */
+async function initApp() {
+  const snap = await balanceRef.once("value");
+  let data = snap.val();
+  if (!data) {
+    const today = startOfDay(new Date());
+    data = { currentBalance:0, dailyAllowance:DEFAULT_ALLOWANCE, lastProcessedDate:dateKey(today), ledger:{}, dailyClosingBalance:{} };
+    await balanceRef.set(data);
+  }
+  await processAllowances(data);
 
-    <hr>
+  balanceRef.on("value", snap => {
+    const data = snap.val(); if (!data) return;
+    document.getElementById("balance").innerText = data.currentBalance.toFixed(2);
+    document.getElementById("dailyAllowance").value = data.dailyAllowance;
+    renderDailyChart(data.ledger || {}); renderWeeklyChart(data.dailyClosingBalance || {}); renderMonthlyChart(data.dailyClosingBalance || {});
+  });
+}
 
-    <details>
-      <summary><strong>Weekly Summary</strong></summary>
-      <div id="weeklyChart"></div>
-    </details>
+/* ------------------ DAILY ALLOWANCE ------------------ */
+async function processAllowances(data) {
+  let { currentBalance, dailyAllowance, lastProcessedDate } = data;
+  const today = startOfDay(new Date());
+  let cursor = startOfDay(new Date(lastProcessedDate));
 
-    <hr>
+  while(true){
+    cursor.setDate(cursor.getDate()+1);
+    const key = dateKey(cursor);
+    if(cursor >= today) break;
 
-    <details>
-      <summary><strong>Monthly Summary (Previous Month)</strong></summary>
-      <div id="monthlyChart"></div>
-    </details>
-  </div>
+    const dayLedgerRef = balanceRef.child(`ledger/${key}`);
+    const snap = await dayLedgerRef.once("value");
+    const entries = snap.val() || {};
+    const alreadyHasAllowance = Object.values(entries).some(e => e.type==="allowance");
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    if(!alreadyHasAllowance){
+      await dayLedgerRef.push({ type:"allowance", amount:dailyAllowance, timestamp:cursor.getTime() });
+      currentBalance += dailyAllowance;
+      await balanceRef.child("dailyClosingBalance").update({[key]:currentBalance});
+    }
+  }
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyBBmaDJXyRblo9o0I8h3d_lP1h6wxA9s8o",
-      authDomain: "dailyallowancetracker.firebaseapp.com",
-      databaseURL: "https://dailyallowancetracker-default-rtdb.firebaseio.com",
-      projectId: "dailyallowancetracker",
-      storageBucket: "dailyallowancetracker.appspot.com",
-      messagingSenderId: "745691126368",
-      appId: "1:745691126368:web:b1af01fc2d574b11054105"
-    };
+  await balanceRef.update({ currentBalance, lastProcessedDate:dateKey(today) });
+}
 
-    firebase.initializeApp(firebaseConfig);
-  </script>
+/* ------------------ ACTIONS ------------------ */
+window.setCurrentBalance = () => { const val=parseFloat(document.getElementById("setBalance").value); if(isNaN(val)) return; balanceRef.update({currentBalance:val}); };
+window.updateAllowance = () => { const val=parseFloat(document.getElementById("dailyAllowance").value); if(isNaN(val)) return; balanceRef.update({dailyAllowance:val}); };
 
-  <script src="app.js"></script>
+/* ------------------ SPENDING / BONUS / UNDO ------------------ */
+window.spend = async () => {
+  const amount=parseFloat(document.getElementById("spent").value); if(!amount||amount<=0) return;
+  const dateInput=document.getElementById("spendDate").value;
+  const dayKey = dateKey(dateInput ? new Date(dateInput+"T00:00:00") : new Date());
+  await balanceRef.child(`ledger/${dayKey}`).push({ type:"spend", amount:-amount, note:document.getElementById("spendNote").value||"", timestamp:Date.now() });
+  await recalcFrom(dayKey);
+  document.getElementById("spent").value=""; document.getElementById("spendDate").value=""; document.getElementById("spendNote").value="";
+};
+
+window.addBonus = async () => {
+  const amount=parseFloat(document.getElementById("bonusAmount").value); if(!amount||amount<=0) return;
+  const dateInput=document.getElementById("bonusDate").value;
+  const dayKey = dateKey(dateInput ? new Date(dateInput+"T00:00:00") : new Date());
+  await balanceRef.child(`ledger/${dayKey}`).push({ type:"bonus", amount:amount, note:document.getElementById("bonusNote").value||"", timestamp:Date.now() });
+  await recalcFrom(dayKey);
+  document.getElementById("bonusAmount").value=""; document.getElementById("bonusDate").value=""; document.getElementById("bonusNote").value="";
+};
+
+window.undoEntry = async (day, id) => { await balanceRef.child(`ledger/${day}/${id}`).remove(); await recalcFrom(day); };
+
+/* ------------------ REBALANCING ------------------ */
+async function recalcFrom(startKey){
+  const snap=await balanceRef.once("value"); const data=snap.val(); if(!data) return;
+  const ledger=data.ledger||{}, closing=data.dailyClosingBalance||{};
+  const priorDates=Object.keys(closing).filter(d=>d<startKey).sort();
+  let running=priorDates.length>0 ? closing[priorDates[priorDates.length-1] : 0;
+  const dates=Object.keys(ledger).sort();
+  for(const date of dates){ if(date<startKey) continue; Object.values(ledger[date]).forEach(e=>running+=e.amount);
+    await balanceRef.child("dailyClosingBalance").update({[date]:running});
+  }
+  await balanceRef.update({currentBalance:running});
+}
+
+/* ------------------ RENDERING ------------------ */
+function renderDailyChart(ledger){
+  const container=document.getElementById("dailyChart"); container.innerHTML="";
+  const today=startOfDay(new Date());
+  for(let i=0;i<7;i++){
+    const d=new Date(today); d.setDate(d.getDate()-i); const key=dateKey(d);
+    if(!ledger[key]) continue;
+    let dailyTotal=0; Object.values(ledger[key]).forEach(e=>{if(e.type==="spend") dailyTotal+=Math.abs(e.amount);});
+    const details=document.createElement("details"); if(i===0) details.open=true;
+    const summary=document.createElement("summary"); summary.innerText=(i===0?"Today":d.toLocaleDateString())+` — Spent: $${dailyTotal.toFixed(2)}`; details.appendChild(summary);
+    Object.entries(ledger[key]).forEach(([id,entry])=>{
+      const row=document.createElement("div"); row.className=`spend-row ${entry.type}`;
+      const typeSpan=document.createElement("span"); typeSpan.innerText=`${entry.type}: `;
+      const amountSpan=document.createElement("span"); const amountDisplay=entry.type==="spend"?-entry.amount:entry.amount; amountSpan.innerText=`$${Math.abs(amountDisplay).toFixed(2)}`;
+      if(entry.type==="spend"){ amountSpan.style.color="red"; amountSpan.style.fontWeight="bold"; }
+      else if(entry.type==="bonus"||entry.type==="allowance"){ amountSpan.style.color="green"; amountSpan.style.fontWeight="bold"; }
+      const textSpan=document.createElement("span"); textSpan.className="text"; textSpan.appendChild(typeSpan); textSpan.appendChild(amountSpan);
+      if(entry.note){ const noteSpan=document.createElement("span"); noteSpan.innerText=`— ${entry.note}`; textSpan.appendChild(noteSpan); }
+      row.appendChild(textSpan);
+      const btn=document.createElement("button"); btn.innerText="Undo"; btn.onclick=()=>undoEntry(key,id); row.appendChild(btn);
+      details.appendChild(row);
+    });
+    container.appendChild(details);
+  }
+}
+
+function renderWeeklyChart(balances){
+  const container=document.getElementById("weeklyChart"); container.innerHTML="";
+  Object.entries(balances).forEach(([d,bal])=>{const row=document.createElement("div"); row.innerText=`${d}: $${bal.toFixed(2)}`; container.appendChild(row);});
+}
+
+function renderMonthlyChart(balances){
+  const container=document.getElementById("monthlyChart"); container.innerHTML="";
+  Object.entries(balances).forEach(([d,bal])=>{const row=document.createElement("div"); row.innerText=`${d}: $${bal.toFixed(2)}`; container.appendChild(row);});
+}
+</script>
 </body>
 </html>
