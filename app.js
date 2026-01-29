@@ -42,7 +42,7 @@ async function initApp() {
   await processAllowances(data);
 }
 
-/* ------------------ DAILY ALLOWANCE ENGINE ------------------ */
+// ------------------ DAILY ALLOWANCE ENGINE (FIXED) ------------------
 async function processAllowances(data) {
   let { currentBalance, dailyAllowance, lastProcessedDate } = data;
 
@@ -50,20 +50,18 @@ async function processAllowances(data) {
   let cursor = startOfDay(new Date(lastProcessedDate));
 
   while (true) {
-    const nextDay = new Date(cursor);
-    nextDay.setDate(nextDay.getDate() + 1);
+    cursor.setDate(cursor.getDate() + 1);
 
     // Only process fully completed days
-    if (nextDay >= today) break;
+    if (cursor >= today) break;
 
-    cursor = nextDay;
     const key = dateKey(cursor);
     const dayLedgerRef = balanceRef.child(`ledger/${key}`);
-
     const snap = await dayLedgerRef.once("value");
     const entries = snap.val() || {};
 
-    const alreadyHasAllowance = Object.values(entries).some(
+    // Check if allowance already exists
+    const alreadyHasAllowance = Object.values(entries || {}).some(
       e => e.type === "allowance"
     );
 
@@ -82,11 +80,13 @@ async function processAllowances(data) {
     }
   }
 
+  // Update lastProcessedDate to today
   await balanceRef.update({
     currentBalance,
     lastProcessedDate: dateKey(today)
   });
 }
+
 
 /* ------------------ REACTIVE UI ------------------ */
 balanceRef.on("value", snap => {
@@ -280,11 +280,12 @@ function renderDailyChart(ledger) {
 
   row.appendChild(textSpan);
 
-  // Add Undo button (aligned to far right via CSS)
-  const btn = document.createElement("button");
-  btn.innerText = "Undo";
-  btn.onclick = () => undoEntry(key, id);
-  row.appendChild(btn);
+  // Add Undo button (works for spend, bonus, allowance)
+const btn = document.createElement("button");
+btn.innerText = "Undo";
+btn.onclick = () => undoEntry(key, id);
+row.appendChild(btn);
+
 
   details.appendChild(row);
 });
