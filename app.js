@@ -56,7 +56,7 @@ while (true) {
   const nextDay = new Date(cursor);
   nextDay.setDate(nextDay.getDate() + 1);
 
-  if (nextDay >= today) break;
+  if (nextDay > today) break;
 
   cursor = nextDay;
   const key = dateKey(cursor);
@@ -255,3 +255,4 @@ function renderMonthlyChart(dailyBalances) {
     }
   });
 }
+
