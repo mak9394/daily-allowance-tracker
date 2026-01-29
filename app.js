@@ -4,7 +4,12 @@ const balanceRef = firebase.database().ref("balanceData");
 function dateKey(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  return d.toLocaleDateString("en-CA");
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function startOfDay(d) {
