@@ -2,7 +2,9 @@ const DEFAULT_ALLOWANCE = 100;
 const balanceRef = firebase.database().ref("balanceData");
 
 function dateKey(date) {
-  return date.toISOString().split("T")[0];
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toLocaleDateString("en-CA");
 }
 
 function startOfDay(d) {
@@ -97,7 +99,7 @@ while (true) {
   const amount = parseFloat(input.value);
   if (!amount || amount <= 0) return;
 
-  const todayStr = dateKey(new Date());
+const todayStr = dateKey(new Date());
 
   // Create entry first
   const entryRef = balanceRef.child(`ledger/${todayStr}`).push();
