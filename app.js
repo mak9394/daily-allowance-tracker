@@ -104,9 +104,7 @@ while (true) {
   const amount = parseFloat(input.value);
   if (!amount || amount <= 0) return;
 
-const todayStr = dateKey(new Date());
-
-  // Create entry first
+  const todayStr = dateKey(new Date());
   const entryRef = balanceRef.child(`ledger/${todayStr}`).push();
 
   entryRef
@@ -116,14 +114,18 @@ const todayStr = dateKey(new Date());
       timestamp: Date.now()
     })
     .then(() => {
-      // Only update balance AFTER entry is saved
       return balanceRef.child("currentBalance").transaction(
         b => (b || 0) - amount
       );
+    })
+    .catch(err => {
+      alert("Failed to save spend. Check Firebase rules.");
+      console.error(err);
     });
 
   input.value = "";
 };
+
 
 
   window.setCurrentBalance = function () {
