@@ -1,5 +1,52 @@
+// ------------------ GLOBAL SETTINGS ------------------
 const DEFAULT_ALLOWANCE = 100;
-const balanceRef = firebase.database().ref("balanceData");
+let userId = null;       // Current user's UID
+let balanceRef = null;   // Points to current user's node in DB
+
+/* ------------------ AUTH FUNCTIONS ------------------ */
+async function signup() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  try {
+    const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+    console.log("Signed up:", cred.user.uid);
+  } catch (err) {
+    alert("Signup error: " + err.message);
+  }
+}
+
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  try {
+    const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+    console.log("Logged in:", cred.user.uid);
+  } catch (err) {
+    alert("Login error: " + err.message);
+  }
+}
+
+/* ------------------ AUTH STATE LISTENER ------------------ */
+firebase.auth().onAuthStateChanged(async (user) => {
+  if (user) {
+    // User logged in
+    userId = user.uid;
+    balanceRef = firebase.database().ref(`users/${userId}/balanceData`);
+
+    // Show app, hide auth
+    document.getElementById("authContainer").style.display = "none";
+    document.getElementById("appContainer").style.display = "block";
+
+    // Initialize app for this user
+    await initApp();
+  } else {
+    // User logged out
+    userId = null;
+    balanceRef = null;
+    document.getElementById("authContainer").style.display = "block";
+    document.getElementById("appContainer").style.display = "none";
+  }
+});
 
 /* ------------------ DATE HELPERS ------------------ */
 function startOfDay(d) {
@@ -40,30 +87,40 @@ async function initApp() {
   }
 
   await processAllowances(data);
+
+  // Start reactive UI
+  balanceRef.on("value", snap => {
+    const data = snap.val();
+    if (!data) return;
+
+    document.getElementById("balance").innerText =
+      data.currentBalance.toFixed(2);
+
+    document.getElementById("dailyAllowance").value =
+      data.dailyAllowance;
+
+    renderDailyChart(data.ledger || {});
+    renderWeeklyChart(data.dailyClosingBalance || {});
+    renderMonthlyChart(data.dailyClosingBalance || {});
+  });
 }
 
-// ------------------ DAILY ALLOWANCE ENGINE (FIXED) ------------------
+/* ------------------ DAILY ALLOWANCE ENGINE ------------------ */
 async function processAllowances(data) {
   let { currentBalance, dailyAllowance, lastProcessedDate } = data;
-
   const today = startOfDay(new Date());
   let cursor = startOfDay(new Date(lastProcessedDate));
 
   while (true) {
     cursor.setDate(cursor.getDate() + 1);
-
-    // Only process fully completed days
+    const key = dateKey(cursor);
     if (cursor >= today) break;
 
-    const key = dateKey(cursor);
     const dayLedgerRef = balanceRef.child(`ledger/${key}`);
     const snap = await dayLedgerRef.once("value");
     const entries = snap.val() || {};
 
-    // Check if allowance already exists
-    const alreadyHasAllowance = Object.values(entries || {}).some(
-      e => e.type === "allowance"
-    );
+    const alreadyHasAllowance = Object.values(entries).some(e => e.type === "allowance");
 
     if (!alreadyHasAllowance) {
       await dayLedgerRef.push({
@@ -71,38 +128,16 @@ async function processAllowances(data) {
         amount: dailyAllowance,
         timestamp: cursor.getTime()
       });
-
       currentBalance += dailyAllowance;
-
-      await balanceRef.child("dailyClosingBalance").update({
-        [key]: currentBalance
-      });
+      await balanceRef.child("dailyClosingBalance").update({ [key]: currentBalance });
     }
   }
 
-  // Update lastProcessedDate to today
   await balanceRef.update({
     currentBalance,
     lastProcessedDate: dateKey(today)
   });
 }
-
-
-/* ------------------ REACTIVE UI ------------------ */
-balanceRef.on("value", snap => {
-  const data = snap.val();
-  if (!data) return;
-
-  document.getElementById("balance").innerText =
-    data.currentBalance.toFixed(2);
-
-  document.getElementById("dailyAllowance").value =
-    data.dailyAllowance;
-
-  renderDailyChart(data.ledger || {});
-  renderWeeklyChart(data.dailyClosingBalance || {});
-  renderMonthlyChart(data.dailyClosingBalance || {});
-});
 
 /* ------------------ ACTIONS ------------------ */
 window.setCurrentBalance = function () {
@@ -117,6 +152,7 @@ window.updateAllowance = function () {
   balanceRef.update({ dailyAllowance: val });
 };
 
+/* ------------------ SPEND / BONUS / UNDO ------------------ */
 window.spend = async function () {
   const amountInput = document.getElementById("spent");
   const dateInput = document.getElementById("spendDate");
@@ -125,10 +161,7 @@ window.spend = async function () {
   const amount = parseFloat(amountInput.value);
   if (!amount || amount <= 0) return;
 
-  const spendDate = dateInput.value
-    ? new Date(dateInput.value + "T00:00:00")
-    : new Date();
-
+  const spendDate = dateInput.value ? new Date(dateInput.value + "T00:00:00") : new Date();
   const dayKey = dateKey(spendDate);
 
   await balanceRef.child(`ledger/${dayKey}`).push({
@@ -145,7 +178,6 @@ window.spend = async function () {
   noteInput.value = "";
 };
 
-// ------------------ ADD BONUS ------------------
 window.addBonus = async function () {
   const amountInput = document.getElementById("bonusAmount");
   const dateInput = document.getElementById("bonusDate");
@@ -154,15 +186,12 @@ window.addBonus = async function () {
   const amount = parseFloat(amountInput.value);
   if (!amount || amount <= 0) return;
 
-  const bonusDate = dateInput.value
-    ? new Date(dateInput.value + "T00:00:00")
-    : new Date();
-
+  const bonusDate = dateInput.value ? new Date(dateInput.value + "T00:00:00") : new Date();
   const dayKey = dateKey(bonusDate);
 
   await balanceRef.child(`ledger/${dayKey}`).push({
     type: "bonus",
-    amount: amount, // positive
+    amount: amount,
     note: noteInput.value || "",
     timestamp: Date.now()
   });
@@ -174,7 +203,6 @@ window.addBonus = async function () {
   noteInput.value = "";
 };
 
-// ------------------ UNDO ANY ENTRY ------------------
 window.undoEntry = async function (day, entryId) {
   await balanceRef.child(`ledger/${day}/${entryId}`).remove();
   await recalcFrom(day);
@@ -189,27 +217,16 @@ async function recalcFrom(startKey) {
   const ledger = data.ledger || {};
   const closing = data.dailyClosingBalance || {};
 
-  const priorDates = Object.keys(closing)
-    .filter(d => d < startKey)
-    .sort();
-
-  let running =
-    priorDates.length > 0
-      ? closing[priorDates[priorDates.length - 1]]
-      : 0;
+  const priorDates = Object.keys(closing).filter(d => d < startKey).sort();
+  let running = priorDates.length > 0 ? closing[priorDates[priorDates.length - 1]] : 0;
 
   const dates = Object.keys(ledger).sort();
-
   for (const date of dates) {
     if (date < startKey) continue;
-
     Object.values(ledger[date]).forEach(entry => {
       running += entry.amount;
     });
-
-    await balanceRef.child("dailyClosingBalance").update({
-      [date]: running
-    });
+    await balanceRef.child("dailyClosingBalance").update({ [date]: running });
   }
 
   await balanceRef.update({ currentBalance: running });
@@ -246,7 +263,7 @@ function renderDailyChart(ledger) {
 
     Object.entries(ledger[key]).forEach(([id, entry]) => {
   const row = document.createElement("div");
-  row.className = "spend-row";
+  row.className = `spend-row ${entry.type}`; // adds spend, bonus, or allowance
 
   // Create spans for type and amount
   const typeSpan = document.createElement("span");
@@ -316,6 +333,3 @@ function renderMonthlyChart(balances) {
     container.appendChild(row);
   });
 }
-
-/* ------------------ START ------------------ */
-initApp();
