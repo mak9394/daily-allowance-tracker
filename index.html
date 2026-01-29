@@ -32,11 +32,44 @@
 
     <hr>
 
-    <label>
-      Spent Today: $
-      <input type="number" id="spent" />
-    </label>
-    <button onclick="spend()">Add Spending</button>
+<hr>
+<h3>Add Spend</h3>
+
+<label>
+  Amount: $
+  <input type="number" id="spent" />
+</label>
+
+<label>
+  Date:
+  <input type="date" id="spendDate" />
+</label>
+
+<label>
+  Note:
+  <input type="text" id="spendNote" placeholder="Optional note" />
+</label>
+
+<button onclick="spend()">Add Spending</button>
+
+<hr>
+<h3>Add Bonus</h3>
+<label>
+  Amount: $
+  <input type="number" id="bonusAmount" />
+</label>
+
+<label>
+  Date:
+  <input type="date" id="bonusDate" />
+</label>
+
+<label>
+  Note:
+  <input type="text" id="bonusNote" placeholder="Optional note" />
+</label>
+
+<button onclick="addBonus()">Add Bonus</button>
 
     <hr>
 
