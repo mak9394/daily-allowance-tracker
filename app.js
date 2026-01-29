@@ -1,24 +1,19 @@
 const DEFAULT_ALLOWANCE = 100;
 const balanceRef = firebase.database().ref("balanceData");
 
-function dateKey(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
+/* ------------------ DATE HELPERS ------------------ */
 function startOfDay(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
 
-// Show today's date
+function dateKey(date) {
+  const d = startOfDay(date);
+  return d.toISOString().split("T")[0];
+}
+
+/* ------------------ SHOW TODAY ------------------ */
 document.getElementById("currentDate").innerText =
   new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -27,8 +22,10 @@ document.getElementById("currentDate").innerText =
     day: "numeric"
   });
 
-balanceRef.once("value").then((snapshot) => {
-  let data = snapshot.val();
+/* ------------------ INIT APP ------------------ */
+async function initApp() {
+  const snap = await balanceRef.once("value");
+  let data = snap.val();
 
   if (!data) {
     const today = startOfDay(new Date());
@@ -39,220 +36,285 @@ balanceRef.once("value").then((snapshot) => {
       ledger: {},
       dailyClosingBalance: {}
     };
-    balanceRef.set(data);
+    await balanceRef.set(data);
   }
 
-  let {
-    currentBalance,
-    dailyAllowance,
-    lastProcessedDate
-  } = data;
+  await processAllowances(data);
+}
+
+/* ------------------ DAILY ALLOWANCE ENGINE ------------------ */
+async function processAllowances(data) {
+  let { currentBalance, dailyAllowance, lastProcessedDate } = data;
 
   const today = startOfDay(new Date());
   let cursor = startOfDay(new Date(lastProcessedDate));
 
- // Process ONLY fully completed days
-while (true) {
-  const nextDay = new Date(cursor);
-  nextDay.setDate(nextDay.getDate() + 1);
+  while (true) {
+    const nextDay = new Date(cursor);
+    nextDay.setDate(nextDay.getDate() + 1);
 
-  if (nextDay > today) break;
+    // Only process fully completed days
+    if (nextDay >= today) break;
 
-  cursor = nextDay;
-  const key = dateKey(cursor);
+    cursor = nextDay;
+    const key = dateKey(cursor);
+    const dayLedgerRef = balanceRef.child(`ledger/${key}`);
 
-  // Add allowance entry
-  balanceRef.child(`ledger/${key}`).push({
-    type: "allowance",
-    amount: dailyAllowance,
-    timestamp: cursor.getTime()
-  });
+    const snap = await dayLedgerRef.once("value");
+    const entries = snap.val() || {};
 
-  currentBalance += dailyAllowance;
+    const alreadyHasAllowance = Object.values(entries).some(
+      e => e.type === "allowance"
+    );
 
-  // Save closing balance for that day
-  balanceRef.child("dailyClosingBalance").update({
-    [key]: currentBalance
-  });
-}
+    if (!alreadyHasAllowance) {
+      await dayLedgerRef.push({
+        type: "allowance",
+        amount: dailyAllowance,
+        timestamp: cursor.getTime()
+      });
 
-  balanceRef.update({
+      currentBalance += dailyAllowance;
+
+      await balanceRef.child("dailyClosingBalance").update({
+        [key]: currentBalance
+      });
+    }
+  }
+
+  await balanceRef.update({
     currentBalance,
     lastProcessedDate: dateKey(today)
   });
+}
+
+/* ------------------ REACTIVE UI ------------------ */
+balanceRef.on("value", snap => {
+  const data = snap.val();
+  if (!data) return;
 
   document.getElementById("balance").innerText =
-    currentBalance.toFixed(2);
+    data.currentBalance.toFixed(2);
 
   document.getElementById("dailyAllowance").value =
-    dailyAllowance;
+    data.dailyAllowance;
 
-  balanceRef.on("value", (snap) => {
-    const updated = snap.val();
-    if (!updated) return;
-
-    document.getElementById("balance").innerText =
-      updated.currentBalance.toFixed(2);
-
-    renderDailyChart(updated.ledger || {});
-    renderWeeklyChart(updated.dailyClosingBalance || {});
-    renderMonthlyChart(updated.dailyClosingBalance || {});
-  });
-
-  window.spend = function () {
-  const input = document.getElementById("spent");
-  const amount = parseFloat(input.value);
-  if (!amount || amount <= 0) return;
-
-  const todayStr = dateKey(new Date());
-  const entryRef = balanceRef.child(`ledger/${todayStr}`).push();
-
-  entryRef
-    .set({
-      type: "spend",
-      amount: -amount,
-      timestamp: Date.now()
-    })
-    .then(() => {
-      return balanceRef.child("currentBalance").transaction(
-        b => (b || 0) - amount
-      );
-    })
-    .catch(err => {
-      alert("Failed to save spend. Check Firebase rules.");
-      console.error(err);
-    });
-
-  input.value = "";
-};
-
-
-
-  window.setCurrentBalance = function () {
-    const val = parseFloat(document.getElementById("setBalance").value);
-    if (isNaN(val)) return;
-    balanceRef.update({ currentBalance: val });
-  };
-
-  window.updateAllowance = function () {
-    const val = parseFloat(document.getElementById("dailyAllowance").value);
-    if (isNaN(val)) return;
-    balanceRef.update({ dailyAllowance: val });
-  };
+  renderDailyChart(data.ledger || {});
+  renderWeeklyChart(data.dailyClosingBalance || {});
+  renderMonthlyChart(data.dailyClosingBalance || {});
 });
 
-window.undoSpend = function (day, entryId, amount) {
-  // Remove the ledger entry
-  balanceRef.child(`ledger/${day}/${entryId}`).remove();
-
-  // Reverse the balance change
-  balanceRef.child("currentBalance").transaction((balance) => {
-    return (balance || 0) - amount;
-  });
+/* ------------------ ACTIONS ------------------ */
+window.setCurrentBalance = function () {
+  const val = parseFloat(document.getElementById("setBalance").value);
+  if (isNaN(val)) return;
+  balanceRef.update({ currentBalance: val });
 };
 
+window.updateAllowance = function () {
+  const val = parseFloat(document.getElementById("dailyAllowance").value);
+  if (isNaN(val)) return;
+  balanceRef.update({ dailyAllowance: val });
+};
+
+window.spend = async function () {
+  const amountInput = document.getElementById("spent");
+  const dateInput = document.getElementById("spendDate");
+  const noteInput = document.getElementById("spendNote");
+
+  const amount = parseFloat(amountInput.value);
+  if (!amount || amount <= 0) return;
+
+  const spendDate = dateInput.value
+    ? new Date(dateInput.value + "T00:00:00")
+    : new Date();
+
+  const dayKey = dateKey(spendDate);
+
+  await balanceRef.child(`ledger/${dayKey}`).push({
+    type: "spend",
+    amount: -amount,
+    note: noteInput.value || "",
+    timestamp: Date.now()
+  });
+
+  await recalcFrom(dayKey);
+
+  amountInput.value = "";
+  dateInput.value = "";
+  noteInput.value = "";
+};
+
+// ------------------ ADD BONUS ------------------
+window.addBonus = async function () {
+  const amountInput = document.getElementById("bonusAmount");
+  const dateInput = document.getElementById("bonusDate");
+  const noteInput = document.getElementById("bonusNote");
+
+  const amount = parseFloat(amountInput.value);
+  if (!amount || amount <= 0) return;
+
+  const bonusDate = dateInput.value
+    ? new Date(dateInput.value + "T00:00:00")
+    : new Date();
+
+  const dayKey = dateKey(bonusDate);
+
+  await balanceRef.child(`ledger/${dayKey}`).push({
+    type: "bonus",
+    amount: amount, // positive
+    note: noteInput.value || "",
+    timestamp: Date.now()
+  });
+
+  await recalcFrom(dayKey);
+
+  amountInput.value = "";
+  dateInput.value = "";
+  noteInput.value = "";
+};
+
+// ------------------ UNDO ANY ENTRY ------------------
+window.undoEntry = async function (day, entryId) {
+  await balanceRef.child(`ledger/${day}/${entryId}`).remove();
+  await recalcFrom(day);
+};
+
+/* ------------------ REBALANCING ------------------ */
+async function recalcFrom(startKey) {
+  const snap = await balanceRef.once("value");
+  const data = snap.val();
+  if (!data) return;
+
+  const ledger = data.ledger || {};
+  const closing = data.dailyClosingBalance || {};
+
+  const priorDates = Object.keys(closing)
+    .filter(d => d < startKey)
+    .sort();
+
+  let running =
+    priorDates.length > 0
+      ? closing[priorDates[priorDates.length - 1]]
+      : 0;
+
+  const dates = Object.keys(ledger).sort();
+
+  for (const date of dates) {
+    if (date < startKey) continue;
+
+    Object.values(ledger[date]).forEach(entry => {
+      running += entry.amount;
+    });
+
+    await balanceRef.child("dailyClosingBalance").update({
+      [date]: running
+    });
+  }
+
+  await balanceRef.update({ currentBalance: running });
+}
+
+/* ------------------ RENDERING ------------------ */
 function renderDailyChart(ledger) {
   const container = document.getElementById("dailyChart");
   container.innerHTML = "";
 
   const today = startOfDay(new Date());
 
-  // Show today + previous 6 days (7 total)
   for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const key = dateKey(date);
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = dateKey(d);
 
     if (!ledger[key]) continue;
 
-    let dailySpendTotal = 0;
-
-    Object.values(ledger[key]).forEach(entry => {
-      if (entry.type === "spend") {
-        dailySpendTotal += Math.abs(entry.amount);
-      }
+    let dailyTotal = 0;
+    Object.values(ledger[key]).forEach(e => {
+      if (e.type === "spend") dailyTotal += Math.abs(e.amount);
     });
 
-    // Collapsible container
     const details = document.createElement("details");
     if (i === 0) details.open = true;
 
     const summary = document.createElement("summary");
     summary.innerText =
-      (i === 0 ? "Today" : date.toLocaleDateString(undefined, {
-        weekday: "long",
-        month: "numeric",
-        day: "numeric",
-        year: "numeric"
-      })) +
-      ` — Spent: $${dailySpendTotal.toFixed(2)}`;
+      (i === 0 ? "Today" : d.toLocaleDateString()) +
+      ` — Spent: $${dailyTotal.toFixed(2)}`;
 
     details.appendChild(summary);
 
     Object.entries(ledger[key]).forEach(([id, entry]) => {
-      const row = document.createElement("div");
-      row.className = "spend-row";
+  const row = document.createElement("div");
+  row.className = "spend-row";
 
-      const label = document.createElement("span");
-      label.innerText = `${entry.type}: $${Math.abs(entry.amount).toFixed(2)}`;
+  // Create spans for type and amount
+  const typeSpan = document.createElement("span");
+  typeSpan.innerText = `${entry.type}: `;
 
-      row.appendChild(label);
+  const amountSpan = document.createElement("span");
+  const amountDisplay = entry.type === "spend" ? -entry.amount : entry.amount;
+  amountSpan.innerText = `$${Math.abs(amountDisplay).toFixed(2)}`;
 
-      if (entry.type === "spend") {
-        const btn = document.createElement("button");
-        btn.innerText = "Undo";
-        btn.onclick = () => undoSpend(key, id, entry.amount);
-        row.appendChild(btn);
-      }
+  // Color the amount only
+  if (entry.type === "spend") {
+    amountSpan.style.color = "red";
+    amountSpan.style.fontWeight = "bold";
+  } else if (entry.type === "bonus" || entry.type === "allowance") {
+    amountSpan.style.color = "green";
+    amountSpan.style.fontWeight = "bold";
+  }
 
-      details.appendChild(row);
-    });
+  // Wrap type + amount + note in a text container
+  const textSpan = document.createElement("span");
+  textSpan.className = "text";
+  textSpan.appendChild(typeSpan);
+  textSpan.appendChild(amountSpan);
+
+  // Add note if it exists
+  if (entry.note) {
+    const noteSpan = document.createElement("span");
+    noteSpan.innerText = `— ${entry.note}`;
+    textSpan.appendChild(noteSpan);
+  }
+
+  row.appendChild(textSpan);
+
+  // Add Undo button (aligned to far right via CSS)
+  const btn = document.createElement("button");
+  btn.innerText = "Undo";
+  btn.onclick = () => undoEntry(key, id);
+  row.appendChild(btn);
+
+  details.appendChild(row);
+});
+
 
     container.appendChild(details);
   }
 }
 
-
-
-function renderWeeklyChart(dailyBalances) {
+function renderWeeklyChart(balances) {
   const container = document.getElementById("weeklyChart");
   container.innerHTML = "";
 
-  const now = new Date();
-  const end = startOfDay(now);
-  end.setDate(end.getDate() - end.getDay());
-  const start = new Date(end);
-  start.setDate(start.getDate() - 7);
-
-  Object.entries(dailyBalances).forEach(([day, bal]) => {
-    const d = new Date(day);
-    if (d >= start && d < end) {
-      const row = document.createElement("div");
-      row.className = "day-summary";
-      row.style.color = bal >= 0 ? "green" : "red";
-      row.innerText = `${day}: $${bal.toFixed(2)}`;
-      container.appendChild(row);
-    }
+  Object.entries(balances).forEach(([d, bal]) => {
+    const row = document.createElement("div");
+    row.innerText = `${d}: $${bal.toFixed(2)}`;
+    container.appendChild(row);
   });
 }
 
-function renderMonthlyChart(dailyBalances) {
+function renderMonthlyChart(balances) {
   const container = document.getElementById("monthlyChart");
   container.innerHTML = "";
 
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const end = new Date(now.getFullYear(), now.getMonth(), 0);
-
-  Object.entries(dailyBalances).forEach(([day, bal]) => {
-    const d = new Date(day);
-    if (d >= start && d <= end) {
-      const row = document.createElement("div");
-      row.className = "day-summary";
-      row.style.color = bal >= 0 ? "green" : "red";
-      row.innerText = `${day}: $${bal.toFixed(2)}`;
-      container.appendChild(row);
-    }
+  Object.entries(balances).forEach(([d, bal]) => {
+    const row = document.createElement("div");
+    row.innerText = `${d}: $${bal.toFixed(2)}`;
+    container.appendChild(row);
   });
 }
 
+/* ------------------ START ------------------ */
+initApp();
