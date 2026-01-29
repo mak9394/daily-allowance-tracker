@@ -93,21 +93,31 @@ while (true) {
   });
 
   window.spend = function () {
-    const input = document.getElementById("spent");
-    const amount = parseFloat(input.value);
-    if (!amount || amount <= 0) return;
+  const input = document.getElementById("spent");
+  const amount = parseFloat(input.value);
+  if (!amount || amount <= 0) return;
 
-    const todayStr = dateKey(new Date());
+  const todayStr = dateKey(new Date());
 
-    balanceRef.child(`ledger/${todayStr}`).push({
+  // Create entry first
+  const entryRef = balanceRef.child(`ledger/${todayStr}`).push();
+
+  entryRef
+    .set({
       type: "spend",
       amount: -amount,
       timestamp: Date.now()
+    })
+    .then(() => {
+      // Only update balance AFTER entry is saved
+      return balanceRef.child("currentBalance").transaction(
+        b => (b || 0) - amount
+      );
     });
 
-    balanceRef.child("currentBalance").transaction(b => (b || 0) - amount);
-    input.value = "";
-  };
+  input.value = "";
+};
+
 
   window.setCurrentBalance = function () {
     const val = parseFloat(document.getElementById("setBalance").value);
@@ -136,29 +146,58 @@ function renderDailyChart(ledger) {
   const container = document.getElementById("dailyChart");
   container.innerHTML = "";
 
-  const today = dateKey(new Date());
-  if (!ledger[today]) return;
+  const today = startOfDay(new Date());
 
-  Object.entries(ledger[today]).forEach(([id, entry]) => {
-    const row = document.createElement("div");
-    row.className = "spend-row";
+  // Show today + previous 6 days (7 total)
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const key = dateKey(date);
 
-    // Label
-    const label = document.createElement("span");
-    label.innerText = `${entry.type}: $${Math.abs(entry.amount).toFixed(2)}`;
+    if (!ledger[key]) continue;
 
-    row.appendChild(label);
+    // Create collapsible section
+    const details = document.createElement("details");
 
-    // Only allow undo for spends
-    if (entry.type === "spend") {
-      const btn = document.createElement("button");
-      btn.innerText = "Undo";
-      btn.onclick = () => undoSpend(today, id, entry.amount);
-      row.appendChild(btn);
-    }
+    // Expand today by default
+    if (i === 0) details.open = true;
 
-    container.appendChild(row);
-  });
+    const summary = document.createElement("summary");
+    summary.innerText =
+      i === 0
+        ? "Today"
+        : date.toLocaleDateString(undefined, {
+            weekday: "long",
+            month: "numeric",
+            day: "numeric",
+            year: "numeric"
+          });
+
+    details.appendChild(summary);
+
+    // Entries for that date
+    Object.entries(ledger[key]).forEach(([id, entry]) => {
+      const row = document.createElement("div");
+      row.className = "spend-row";
+
+      const label = document.createElement("span");
+      label.innerText = `${entry.type}: $${Math.abs(entry.amount).toFixed(2)}`;
+
+      row.appendChild(label);
+
+      // Undo only for spends
+      if (entry.type === "spend") {
+        const btn = document.createElement("button");
+        btn.innerText = "Undo";
+        btn.onclick = () => undoSpend(key, id, entry.amount);
+        row.appendChild(btn);
+      }
+
+      details.appendChild(row);
+    });
+
+    container.appendChild(details);
+  }
 }
 
 
