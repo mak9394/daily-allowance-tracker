@@ -11,8 +11,11 @@ body {
   padding: 25px 30px;
   border-radius: 12px;
   min-width: 320px;
-  display: inline-block;
+  max-width: 400px;           /* keep it from being too wide */
+  margin: 0 auto;             /* center the container horizontally */
+  display: block;             /* ensure margin auto works */
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  text-align: left;           /* align internal text to left for readability */
 }
 
 .date {
@@ -56,21 +59,34 @@ hr {
   display: block;
   margin: 10px 0;
   font-weight: bold;
+  text-align: left;
 }
 
 #authContainer input {
-  width: 200px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
 }
 
 #authContainer button {
-  width: 100px;
+  width: 100%;
+}
+
+/* ------------------ CENTER LABEL + INPUTS ------------------ */
+label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 8px;
 }
 
 /* ------------------ LEDGER ROWS ------------------ */
 .spend-row {
-  display: flex;                
+  display: flex;
   justify-content: space-between; /* Undo button on far right */
-  align-items: center;          /* Vertically center text + button */
+  align-items: center;           /* vertically center text + button */
   margin: 4px 0;
 }
 
@@ -81,7 +97,6 @@ hr {
 }
 
 /* ------------------ AMOUNT COLORING ------------------ */
-/* Make all amounts bold */
 .spend-row span.amount {
   font-weight: bold;
 }
@@ -105,6 +120,7 @@ hr {
 details summary {
   cursor: pointer;
   margin-bottom: 8px;
+  font-weight: bold;
 }
 
 details {
