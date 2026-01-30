@@ -333,3 +333,4 @@ function renderMonthlyChart(balances) {
     container.appendChild(row);
   });
 }
+
